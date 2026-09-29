@@ -3,7 +3,7 @@
 [![Python](https://img.shields.io/badge/Python-3.11-blue.svg)](https://www.python.org/)
 [![Streamlit](https://img.shields.io/badge/Streamlit-1.64-FF4B4B.svg)](https://streamlit.io/)
 [![PyMuPDF](https://img.shields.io/badge/PyMuPDF-1.28-brightgreen.svg)](https://pymupdf.readthedocs.io/)
-[![Gemini API](https://img.shields.io/badge/Gemini-1.5_Flash-orange.svg)](https://ai.google.dev/)
+[![Gemini API](https://img.shields.io/badge/Gemini-2.5_Flash-orange.svg)](https://ai.google.dev/)
 [![Tests](https://img.shields.io/badge/Tests-13%20Passed-success.svg)](./tests)
 
 **ASTRA INTEL** is an AI-powered document intelligence system designed for defence analysts, military engineers, and technical evaluators. It processes unstructured defence specifications, operational doctrine, and intelligence briefs to deliver verifiable, page-cited answers and executive summaries with strict anti-hallucination guardrails.
@@ -33,7 +33,7 @@ ASTRA INTEL implements a lightweight, deterministic retrieval-augmented pipeline
 - **PyMuPDF In-Memory Parser**: Extracts text while strictly maintaining page boundaries (no blind concatenation).
 - **Page-Preserving Chunker**: Splits pages into overlapping segments without ever crossing page borders.
 - **Interpretable Grounded Retrieval**: Uses term-frequency and phrase-matching scoring to select the top relevant passages in milliseconds.
-- **Strict Anti-Hallucination Guardrails**: Prompts Gemini 1.5 Flash with a rigid contract: if the answer is absent from the supplied context, it must return `"I could not find this information in the uploaded document."`
+- **Strict Anti-Hallucination Guardrails**: Prompts Gemini 2.5 Flash with a rigid contract: if the answer is absent from the supplied context, it must return `"I could not find this information in the uploaded document."`
 - **Page-Level Auditing**: Automatically reports contributing source pages and displays expandable verbatim source passages for every answer.
 
 ---
@@ -77,7 +77,7 @@ The stack was chosen strictly to prioritize simplicity, speed, and beginner-leve
 | **Language** | Python 3.11 | Standard, reliable, widely supported language for data & AI pipelines. |
 | **Frontend UI** | Streamlit | Rapid, reactive web framework requiring zero JavaScript or complex build steps. |
 | **PDF Extraction** | PyMuPDF (`pymupdf`) | High-speed C-based PDF parser; extracts text with exact page geometry and metadata. |
-| **LLM Provider** | Google Gemini (`google-genai`) | Official modern Python SDK targeting `gemini-1.5-flash` for high speed, reliability, and reasoning. |
+| **LLM Provider** | Google Gemini (`google-genai`) | Official modern Python SDK targeting `gemini-2.5-flash` for high speed, reliability, and reasoning. |
 | **Configuration** | `python-dotenv` | Secure loading of environment variables from `.env` to prevent credential leaks. |
 | **Testing** | `pytest` | Industry-standard automated unit and integration testing suite. |
 | **Version Control**| Git / MinGit | Clean repository tracking with strict `.gitignore` protection. |
@@ -113,7 +113,7 @@ flowchart TD
     subgraph LLM_Layer ["Intelligence & Guardrails (Gemini)"]
         TopChunks --> LLM[src/llm_service.py]
         Streamlit -->|Recent Q&A History| LLM
-        LLM -->|Strict Grounding System Prompt| Gemini[Google Gemini 1.5 Flash]
+        LLM -->|Strict Grounding System Prompt| Gemini[Google Gemini 2.5 Flash]
         Gemini -->|Audited Response| Formatter{Factual or Refusal?}
         Formatter -->|Grounded| Answer[Answer + Verified Page Citations]
         Formatter -->|Absent| Refusal["Refusal: 'I could not find this information in the uploaded document.'"]
@@ -130,7 +130,7 @@ flowchart TD
 3. **Question**: User types a query (e.g., *"What are the major applications?"*).
 4. **Retrieval**: The retrieval engine tokenizes the query, removes stopwords, and scores chunks based on keyword frequency and phrase matches.
 5. **Context Formulation**: Top-ranked chunks are formatted with `[Source Segment X | Page Y]` headers.
-6. **Gemini Query**: Gemini 1.5 Flash is instructed to answer strictly from the context or emit the refusal phrase.
+6. **Gemini Query**: Gemini 2.5 Flash is instructed to answer strictly from the context or emit the refusal phrase.
 7. **Citation Assembly**: If answered, contributing page numbers are aggregated and formatted into citations alongside verbatim excerpts.
 
 ---

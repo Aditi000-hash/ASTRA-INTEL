@@ -106,9 +106,9 @@ def test_llm_service_anti_hallucination_empty_context():
 
 
 def test_llm_service_default_model():
-    """Verify that LLMService defaults to gemini-1.5-flash."""
+    """Verify that LLMService defaults to gemini-2.5-flash."""
     llm = LLMService(api_key="AIzaSyDummyKeyForModelDefaultCheck12345")
-    assert llm.model == "gemini-1.5-flash"
+    assert llm.model == "gemini-2.5-flash"
 
 
 def test_llm_service_503_retry_and_exhaustion(monkeypatch):

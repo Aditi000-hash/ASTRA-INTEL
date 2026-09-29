@@ -35,7 +35,7 @@ flowchart TD
     subgraph Intelligence_Layer ["AI & Anti-Hallucination Guardrails"]
         L --> M[LLM Service src/llm_service.py]
         B -->|Prior Q&A Turns| M
-        M -->|Strict Grounding System Prompt| N[Google Gemini 1.5 Flash]
+        M -->|Strict Grounding System Prompt| N[Google Gemini 2.5 Flash]
         N -->|Audited Output| O{Information Found?}
         O -->|YES| P[Grounded Answer + Page Numbers]
         O -->|NO| Q["Refusal Phrase: 'I could not find this information in the uploaded document.'"]
@@ -103,7 +103,7 @@ sequenceDiagram
 - **No-Match Detection**: If no keywords match, the retrieval engine signals `has_relevant_content = False`, preventing the LLM from hallucinating an answer.
 
 ### 4.3 LLM Service & Anti-Hallucination Guardrails (`src/llm_service.py`)
-- **Google GenAI SDK**: Integrates the modern `google-genai` library targeting `gemini-1.5-flash`.
+- **Google GenAI SDK**: Integrates the modern `google-genai` library targeting `gemini-2.5-flash`.
 - **Strict Grounding Contract**:
   - Context is formatted with explicit page markers: `[Source Segment {i} | Page {p}]`.
   - Prompt enforces a non-negotiable instruction:
