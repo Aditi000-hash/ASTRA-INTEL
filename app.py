@@ -29,70 +29,15 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# Custom CSS for a professional, clean, technical defence aesthetic
-st.markdown("""
-<style>
-    /* Technical Defence Theme Styling */
-    .stApp {
-        background-color: #0e1117;
-        color: #e0e0e0;
-    }
-    .main-header {
-        font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-        font-weight: 700;
-        color: #ffffff;
-        letter-spacing: 1.5px;
-        margin-bottom: 2px;
-    }
-    .sub-header {
-        color: #8fa3bf;
-        font-size: 0.95rem;
-        letter-spacing: 1px;
-        text-transform: uppercase;
-        margin-bottom: 20px;
-        border-bottom: 1px solid #233044;
-        padding-bottom: 10px;
-    }
-    .badge-grounded {
-        background-color: #163828;
-        color: #52c41a;
-        padding: 4px 10px;
-        border-radius: 4px;
-        font-size: 0.82rem;
-        font-weight: 600;
-        display: inline-block;
-        border: 1px solid #237804;
-    }
-    .badge-refusal {
-        background-color: #3b2020;
-        color: #ff7875;
-        padding: 4px 10px;
-        border-radius: 4px;
-        font-size: 0.82rem;
-        font-weight: 600;
-        display: inline-block;
-        border: 1px solid #821111;
-    }
-    .citation-box {
-        background-color: #141c28;
-        border-left: 4px solid #1890ff;
-        padding: 10px 14px;
-        margin-top: 10px;
-        border-radius: 0 6px 6px 0;
-        font-size: 0.88rem;
-    }
-    .excerpt-card {
-        background-color: #0b1017;
-        border: 1px solid #1f2b3e;
-        border-radius: 4px;
-        padding: 10px;
-        margin-bottom: 8px;
-        font-family: monospace;
-        font-size: 0.82rem;
-        color: #c9d1d9;
-    }
-</style>
-""", unsafe_allow_html=True)
+# Custom CSS for clean technical defence styling
+if hasattr(st, "html"):
+    st.html("""<style>
+/* Technical Defence Theme Styling */
+.stApp {
+    background-color: #0e1117;
+    color: #e0e0e0;
+}
+</style>""")
 
 
 # Initialize Session State
@@ -143,9 +88,15 @@ with st.sidebar:
     active_api_key = get_api_key(api_key_input)
 
     if active_api_key:
-        st.caption("🟢 API Key configured and active")
+        st.success("🟢 API Key Active")
     else:
-        st.caption("🔴 API Key missing. Enter key or configure .env")
+        st.warning("🔴 API Key Missing")
+        with st.expander("ℹ️ How to configure API key"):
+            st.markdown(
+                "**Option 1:** Enter your key in the box above.\n\n"
+                "**Option 2:** Set `GEMINI_API_KEY=your_key` in the `.env` file.\n\n"
+                "[Get a key from Google AI Studio](https://aistudio.google.com/)"
+            )
 
     st.markdown("---")
 
@@ -227,11 +178,9 @@ with st.sidebar:
 # ==========================================
 # MAIN CONTENT AREA
 # ==========================================
-st.markdown('<div class="main-header"><h2>ASTRA INTEL</h2></div>', unsafe_allow_html=True)
-st.markdown(
-    '<div class="sub-header">AI-Powered Defence Document Intelligence System | 3-Day Build Challenge</div>',
-    unsafe_allow_html=True
-)
+st.title("🛡️ ASTRA INTEL")
+st.subheader("AI-Powered Defence Document Intelligence System")
+st.caption("ASTRA Software Team 3-Day Build Challenge 2026–27 | Challenge 01")
 
 # Guard: Check if document is loaded
 if not st.session_state.pages:
@@ -375,15 +324,7 @@ if st.session_state.messages:
                     sources = msg.get("sources", [])
                     citation_label = format_page_citations(sources)
 
-                    st.markdown(
-                        f"""
-                        <div class="citation-box">
-                            <span class="badge-grounded">✓ GROUNDED IN DOCUMENT</span>&nbsp;&nbsp;
-                            <strong>Source:</strong> {citation_label}
-                        </div>
-                        """,
-                        unsafe_allow_html=True
-                    )
+                    st.success(f"✓ **GROUNDED IN DOCUMENT** — Source: **{citation_label}**")
 
                     # Expandable source text verification
                     excerpts = msg.get("source_excerpts", [])
@@ -393,14 +334,6 @@ if st.session_state.messages:
                                 st.markdown(
                                     f"**Passage {idx} (Page {ex['page']})** — Relevance Score: `{ex.get('score', 'N/A')}`"
                                 )
-                                st.markdown(f'<div class="excerpt-card">{ex["text"]}</div>', unsafe_allow_html=True)
+                                st.code(ex["text"], language=None)
                 else:
-                    st.markdown(
-                        """
-                        <div class="citation-box" style="border-left-color: #ff4d4f;">
-                            <span class="badge-refusal">⚠ NOT IN DOCUMENT</span>&nbsp;&nbsp;
-                            <em>No factual support exists in the uploaded document. Speculation rejected.</em>
-                        </div>
-                        """,
-                        unsafe_allow_html=True
-                    )
+                    st.warning("⚠️ **NOT IN DOCUMENT** — No factual support exists in the uploaded document. Speculation rejected.")

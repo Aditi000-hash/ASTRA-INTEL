@@ -10,10 +10,15 @@ HOW:  Pure Python helper functions with thorough type annotations and docstrings
 """
 
 import os
+from pathlib import Path
 from typing import List, Optional
 from dotenv import load_dotenv
 
-# Automatically load environment variables from .env file if present
+# Automatically load environment variables from .env file in project root
+PROJECT_ROOT = Path(__file__).resolve().parent.parent
+env_file = PROJECT_ROOT / ".env"
+if env_file.exists():
+    load_dotenv(dotenv_path=env_file)
 load_dotenv()
 
 
