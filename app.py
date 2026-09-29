@@ -101,14 +101,14 @@ with st.sidebar:
     st.markdown("---")
 
     # 2. Model Selection
-    model_options = ["gemini-2.5-flash", "gemini-2.5-pro"]
-    env_default_model = os.getenv("GEMINI_MODEL", "gemini-2.5-flash")
+    model_options = ["gemini-3.8-flash", "gemini-3.5-flash-lite"]
+    env_default_model = os.getenv("GEMINI_MODEL", "gemini-3.8-flash")
     default_idx = model_options.index(env_default_model) if env_default_model in model_options else 0
     selected_model = st.selectbox(
         "Gemini Model",
         options=model_options,
         index=default_idx,
-        help="gemini-2.5-flash is the recommended, high-capacity production model on Google AI Studio."
+        help="gemini-3.8-flash is the current flagship model for new projects on Google AI Studio."
     )
 
     st.markdown("---")

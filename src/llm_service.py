@@ -22,7 +22,7 @@ from google.genai import errors
 REFUSAL_PHRASE = "I could not find this information in the uploaded document."
 
 # Officially supported, stable production model for Google AI Studio
-DEFAULT_MODEL = "gemini-2.5-flash"
+DEFAULT_MODEL = "gemini-3.8-flash"
 
 
 class LLMServiceError(Exception):
@@ -39,13 +39,13 @@ class LLMService:
 
         Args:
             api_key: Valid Google Gemini API Key.
-            model: Gemini model identifier (default: gemini-2.5-flash, or GEMINI_MODEL env var).
+            model: Gemini model identifier (default: gemini-3.8-flash, or GEMINI_MODEL env var).
         """
         if not api_key or not api_key.strip():
             raise LLMServiceError("Missing API key. Please configure your Gemini API key.")
 
         self.api_key = api_key.strip()
-        # Support override via GEMINI_MODEL environment variable, defaulting to gemini-2.5-flash
+        # Support override via GEMINI_MODEL environment variable, defaulting to gemini-3.8-flash
         self.model = os.getenv("GEMINI_MODEL") or model
         try:
             self.client = genai.Client(api_key=self.api_key)
@@ -270,7 +270,7 @@ class LLMService:
                 elif "404" in err_msg or "NOT_FOUND" in err_msg:
                     raise LLMServiceError(
                         f"The requested Gemini model '{self.model}' was not found (HTTP 404). "
-                        "Please select 'gemini-2.5-flash' in the sidebar or check your Google AI Studio project settings."
+                        "Please select 'gemini-3.8-flash' in the sidebar or check your Google AI Studio project settings."
                     )
                 else:
                     raise LLMServiceError(f"Gemini API Client Error: {err_msg}")
