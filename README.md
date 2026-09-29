@@ -159,17 +159,21 @@ pip install -r requirements.txt
 
 ---
 
-## 9. Environment Variables
-Never commit your API key. Create a `.env` file in the root directory:
+## 9. Environment Configuration & Security
+
+> [!WARNING]
+> **Security Notice**: Never commit your `.env` file or expose your `GEMINI_API_KEY` to GitHub or public version control. Keep `.env` listed in `.gitignore` at all times.
+
+Create a `.env` file in the root directory:
 
 ```bash
 # Copy example file
 cp .env.example .env
 ```
 
-Edit `.env` to include your key:
+Edit `.env` to include your Google Gemini API key:
 ```env
-GEMINI_API_KEY=AIzaSyYourActualKeyHere
+GEMINI_API_KEY=your_gemini_api_key_here
 ```
 
 *Note: You can also enter or override your API key directly in the application's sidebar interface.*
@@ -189,9 +193,30 @@ The application will launch in your browser at:
 
 ---
 
-## 11. Testing & Validation
+## 11. Basic Usage Instructions
 
-ASTRA INTEL includes 13 automated unit and integration tests covering extraction, error handling, chunking, retrieval, citations, and anti-hallucination refusals.
+1. **Ingest Document**:
+   - In the sidebar, enter your **Gemini API Key** (or ensure it's loaded from `.env`).
+   - Upload any technical/defence PDF using the file uploader, or click **"📁 Load Sample Defence Brief"** to test with the pre-loaded unclassified UAV specification.
+   - Inspect the **Document Diagnostics** banner (displaying total pages, character count, and indexed text chunks).
+
+2. **Generate Executive Summary**:
+   - Click **"⚡ Generate Executive Summary"** to generate an intelligence briefing covering system overview, technical specifications, operational constraints, and strategic recommendations.
+
+3. **Interactive Q&A with Page Citations**:
+   - Type questions in the query box (e.g., *"What is the maximum operating altitude?"* or click any quick-prompt chip).
+   - View the grounded answer with verifiable page citations (e.g., `Pages 2, 3, and 4`).
+   - Expand the **"🔍 View Auditable Source Excerpts"** drawer to verify the exact text passages retrieved from the PDF.
+
+4. **Verify Anti-Hallucination Guardrails**:
+   - Ask an adversarial query outside the document's scope (e.g., *"What is the nuclear warhead payload capacity?"*).
+   - Observe the system return the exact refusal phrase: *"I could not find this information in the uploaded document."* without hallucinating.
+
+---
+
+## 12. Testing & Validation
+
+ASTRA INTEL includes 16 automated unit and integration tests covering extraction, error handling, chunking, retrieval, citations, 503 retry backoff, 429 quota handling, and anti-hallucination refusals.
 
 ### Execute Tests
 ```bash
@@ -200,33 +225,36 @@ pytest -v
 
 ### Verified Test Results
 ```text
-tests/test_e2e_integration.py::test_end_to_end_retrieval_flow PASSED     [  7%]
-tests/test_pdf_processor.py::test_extract_valid_pdf PASSED               [ 15%]
-tests/test_pdf_processor.py::test_extract_empty_bytes PASSED             [ 23%]
-tests/test_pdf_processor.py::test_extract_corrupt_bytes PASSED           [ 30%]
-tests/test_pdf_processor.py::test_chunking_preserves_page_numbers PASSED [ 38%]
-tests/test_pdf_processor.py::test_clean_text_utility PASSED              [ 46%]
-tests/test_retrieval_and_llm.py::test_tokenize_and_keyword_extraction PASSED [ 53%]
-tests/test_retrieval_and_llm.py::test_retrieve_relevant_chunks_found PASSED [ 61%]
-tests/test_retrieval_and_llm.py::test_retrieve_relevant_chunks_not_found PASSED [ 69%]
-tests/test_retrieval_and_llm.py::test_format_page_citations PASSED       [ 76%]
-tests/test_retrieval_and_llm.py::test_get_api_key_validation PASSED      [ 84%]
-tests/test_retrieval_and_llm.py::test_llm_service_initialization_error PASSED [ 92%]
-tests/test_retrieval_and_llm.py::test_llm_service_anti_hallucination_empty_context PASSED [100%]
+tests/test_e2e_integration.py::test_end_to_end_retrieval_flow PASSED     [  6%]
+tests/test_pdf_processor.py::test_extract_valid_pdf PASSED               [ 12%]
+tests/test_pdf_processor.py::test_extract_empty_bytes PASSED             [ 18%]
+tests/test_pdf_processor.py::test_extract_corrupt_bytes PASSED           [ 25%]
+tests/test_pdf_processor.py::test_chunking_preserves_page_numbers PASSED [ 31%]
+tests/test_pdf_processor.py::test_clean_text_utility PASSED              [ 37%]
+tests/test_retrieval_and_llm.py::test_tokenize_and_keyword_extraction PASSED [ 43%]
+tests/test_retrieval_and_llm.py::test_retrieve_relevant_chunks_found PASSED [ 50%]
+tests/test_retrieval_and_llm.py::test_retrieve_relevant_chunks_not_found PASSED [ 56%]
+tests/test_retrieval_and_llm.py::test_format_page_citations PASSED       [ 62%]
+tests/test_retrieval_and_llm.py::test_get_api_key_validation PASSED      [ 68%]
+tests/test_retrieval_and_llm.py::test_llm_service_initialization_error PASSED [ 75%]
+tests/test_retrieval_and_llm.py::test_llm_service_anti_hallucination_empty_context PASSED [ 81%]
+tests/test_retrieval_and_llm.py::test_llm_service_default_model PASSED   [ 87%]
+tests/test_retrieval_and_llm.py::test_llm_service_503_retry_and_exhaustion PASSED [ 93%]
+tests/test_retrieval_and_llm.py::test_llm_service_429_quota_immediate_rejection PASSED [100%]
 
-============================= 13 passed in 2.09s ==============================
+============================= 16 passed in 5.08s ==============================
 ```
 
 ---
 
-## 12. Known Limitations
+## 13. Known Limitations
 1. **Scanned / Image PDFs**: Documents containing scanned images without embedded text layers require an OCR pre-processor. ASTRA INTEL detects this state and warns the user instead of failing silently.
 2. **Single-Document Scope**: The MVP processes one primary active document per session.
 3. **Keyword-Based Retrieval**: While fast, deterministic, and free of vector database overhead, vocabulary mismatch (e.g. asking for *"power unit"* when the text only says *"hydrogen fuel cell"*) requires keyword overlap or multi-turn rephrasing.
 
 ---
 
-## 13. Future Improvements
+## 14. Future Improvements
 1. **Optical Character Recognition (OCR)**: Integrate Tesseract or Google Cloud Vision OCR to process scanned paper documents.
 2. **Hybrid Semantic Search**: Combine BM25 term frequency with dense vector embeddings (`text-embedding-004`).
 3. **Multi-Document Comparison**: Allow analysts to upload two specifications and compare operational parameters side-by-side.
@@ -234,7 +262,7 @@ tests/test_retrieval_and_llm.py::test_llm_service_anti_hallucination_empty_conte
 
 ---
 
-## 14. AI Usage Disclosure
+## 15. AI Usage Disclosure
 In accordance with ASTRA 3-Day Build Challenge guidelines:
 - **AI Tools Used**: Google DeepMind Antigravity / Gemini.
 - **Used For**: Architectural consultation, API syntax verification (`google-genai` SDK), boilerplate test structure, and documentation drafting.
@@ -242,7 +270,7 @@ In accordance with ASTRA 3-Day Build Challenge guidelines:
 
 ---
 
-## 15. Technical Discussion Guide for ASTRA Evaluation
+## 16. Technical Discussion Guide for ASTRA Evaluation
 
 Here are the key questions the technical review committee may ask, along with the engineering rationale behind this implementation:
 

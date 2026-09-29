@@ -1,21 +1,26 @@
 # Python cache
 __pycache__/
+*.pyc
 *.py[cod]
 *$py.class
 *.so
 .pytest_cache/
 
 # Virtual Environment
+.venv/
 venv/
 env/
-.venv/
 
 # Environment Variables & Secrets
 .env
+.env.*
 .env.local
 secrets.toml
 *.pem
 *.key
+
+# Node / JS dependencies (e.g. quick tunnels, tooling)
+node_modules/
 
 # Streamlit runtime data
 .streamlit/secrets.toml
