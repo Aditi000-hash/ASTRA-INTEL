@@ -100,7 +100,20 @@ with st.sidebar:
 
     st.markdown("---")
 
-    # 2. Document Upload Section
+    # 2. Model Selection
+    model_options = ["gemini-1.5-flash", "gemini-2.0-flash", "gemini-1.5-pro"]
+    env_default_model = os.getenv("GEMINI_MODEL", "gemini-1.5-flash")
+    default_idx = model_options.index(env_default_model) if env_default_model in model_options else 0
+    selected_model = st.selectbox(
+        "Gemini Model",
+        options=model_options,
+        index=default_idx,
+        help="gemini-1.5-flash is the recommended, high-capacity production model on Google AI Studio."
+    )
+
+    st.markdown("---")
+
+    # 3. Document Upload Section
     st.markdown("#### 📄 Document Ingestion")
 
     uploaded_file = st.file_uploader(
@@ -214,7 +227,7 @@ with st.expander("📋 DOCUMENT EXECUTIVE SUMMARY", expanded=(st.session_state.s
         else:
             with st.spinner("Analyzing document structure and synthesizing executive summary..."):
                 try:
-                    llm = LLMService(api_key=active_api_key)
+                    llm = LLMService(api_key=active_api_key, model=selected_model)
                     summary_text = llm.generate_summary(st.session_state.pages)
                     st.session_state.summary = summary_text
                 except LLMServiceError as le:
@@ -278,7 +291,7 @@ if user_query:
         # Step 2: Query Gemini with strict anti-hallucination instructions
         with st.spinner("Retrieving document passages and formulating grounded response..."):
             try:
-                llm = LLMService(api_key=active_api_key)
+                llm = LLMService(api_key=active_api_key, model=selected_model)
                 response_dict = llm.answer_question(
                     question=query_text,
                     context_chunks=relevant_chunks if has_matches else [],

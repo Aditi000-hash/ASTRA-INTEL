@@ -103,3 +103,62 @@ def test_llm_service_anti_hallucination_empty_context():
     assert result["answer"] == REFUSAL_PHRASE
     assert result["sources"] == []
     assert result["is_grounded"] is False
+
+
+def test_llm_service_default_model():
+    """Verify that LLMService defaults to gemini-1.5-flash."""
+    llm = LLMService(api_key="AIzaSyDummyKeyForModelDefaultCheck12345")
+    assert llm.model == "gemini-1.5-flash"
+
+
+def test_llm_service_503_retry_and_exhaustion(monkeypatch):
+    """Verify that a 503 ServerError triggers retries and halts at max_retries with clear message."""
+    from google.genai import errors
+
+    llm = LLMService(api_key="AIzaSyDummyKeyFor503Check12345")
+    call_count = 0
+
+    def mock_generate_content(*args, **kwargs):
+        nonlocal call_count
+        call_count += 1
+        # Simulate Google 503 UNAVAILABLE ServerError
+        raise errors.ServerError(code=503, response_json={"error": {"message": "503 UNAVAILABLE: This model is currently experiencing high demand."}})
+
+    monkeypatch.setattr(llm.client.models, "generate_content", mock_generate_content)
+    # Monkeypatch time.sleep in src.llm_service to avoid waiting during fast unit testing
+    monkeypatch.setattr("src.llm_service.time.sleep", lambda s: None)
+
+    with pytest.raises(LLMServiceError) as exc_info:
+        llm._call_gemini("test prompt")
+
+    # 1 initial attempt + 3 retries = 4 total calls
+    assert call_count == 4
+    assert "503" in str(exc_info.value) or "high demand" in str(exc_info.value).lower()
+    # Ensure raw API key is never in error message
+    assert "AIzaSyDummyKeyFor503Check12345" not in str(exc_info.value)
+
+
+def test_llm_service_429_quota_immediate_rejection(monkeypatch):
+    """Verify that a 429 Quota Exceeded error is raised immediately on attempt 1 without retries."""
+    from google.genai import errors
+
+    llm = LLMService(api_key="AIzaSyDummyKeyFor429Check12345")
+    call_count = 0
+
+    def mock_generate_content(*args, **kwargs):
+        nonlocal call_count
+        call_count += 1
+        # Simulate Google 429 RESOURCE_EXHAUSTED ClientError
+        raise errors.ClientError(code=429, response_json={"error": {"message": "429 RESOURCE_EXHAUSTED: Quota exceeded for quota metric."}})
+
+    monkeypatch.setattr(llm.client.models, "generate_content", mock_generate_content)
+
+    with pytest.raises(LLMServiceError) as exc_info:
+        llm._call_gemini("test prompt")
+
+    # Must fail immediately on attempt 1 without retry
+    assert call_count == 1
+    assert "quota" in str(exc_info.value).lower() or "429" in str(exc_info.value)
+    # Ensure raw API key is never in error message
+    assert "AIzaSyDummyKeyFor429Check12345" not in str(exc_info.value)
+

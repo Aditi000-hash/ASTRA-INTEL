@@ -12,6 +12,7 @@ HOW:  Uses the official google-genai SDK, structured context injection with page
 """
 
 import os
+import time
 from typing import List, Dict, Any, Optional
 from google import genai
 from google.genai import errors
@@ -19,6 +20,9 @@ from google.genai import errors
 
 # Fallback constant required by ASTRA Challenge specification
 REFUSAL_PHRASE = "I could not find this information in the uploaded document."
+
+# Officially supported, stable production model for Google AI Studio
+DEFAULT_MODEL = "gemini-1.5-flash"
 
 
 class LLMServiceError(Exception):
@@ -29,19 +33,19 @@ class LLMServiceError(Exception):
 class LLMService:
     """Wrapper class managing Gemini API interactions."""
 
-    def __init__(self, api_key: str, model: str = "gemini-3.8-flash"):
+    def __init__(self, api_key: str, model: str = DEFAULT_MODEL):
         """
         Initializes the Gemini client.
 
         Args:
             api_key: Valid Google Gemini API Key.
-            model: Gemini model identifier (default: gemini-3.8-flash, or GEMINI_MODEL env var).
+            model: Gemini model identifier (default: gemini-1.5-flash, or GEMINI_MODEL env var).
         """
         if not api_key or not api_key.strip():
             raise LLMServiceError("Missing API key. Please configure your Gemini API key.")
 
         self.api_key = api_key.strip()
-        # Support override via GEMINI_MODEL environment variable, defaulting to gemini-3.8-flash
+        # Support override via GEMINI_MODEL environment variable, defaulting to gemini-1.5-flash
         self.model = os.getenv("GEMINI_MODEL") or model
         try:
             self.client = genai.Client(api_key=self.api_key)
@@ -218,7 +222,13 @@ class LLMService:
 
     def _call_gemini(self, prompt: str) -> str:
         """
-        Executes a call to Gemini API with robust error trapping.
+        Executes a call to Gemini API with robust retry handling for temporary 503 errors.
+
+        Features:
+        - Retries up to 3 times on temporary 503 UNAVAILABLE / high demand spikes.
+        - Uses exponential backoff (1.5s -> 3.0s -> 6.0s).
+        - Immediately raises clear errors for 429 Quota Exceeded without retrying.
+        - Sanitizes error messages to ensure API keys are never leaked.
 
         Args:
             prompt: Text prompt string.
@@ -229,33 +239,73 @@ class LLMService:
         Raises:
             LLMServiceError: User-friendly error message on API/network failures.
         """
-        try:
-            response = self.client.models.generate_content(
-                model=self.model,
-                contents=prompt
-            )
-            if not response or not response.text:
-                raise LLMServiceError("Received an empty response from Gemini API.")
-            return response.text.strip()
+        max_retries = 3
+        base_delay = 1.5
+        backoff_factor = 2.0
 
-        except errors.ClientError as e:
-            # Typically 400 (Bad Request), 403 (Invalid API Key), 429 (Quota Exceeded)
-            err_msg = str(e)
-            if "API_KEY_INVALID" in err_msg or "403" in err_msg:
-                raise LLMServiceError(
-                    "Invalid Gemini API key. Please check your API key in the sidebar or .env file."
+        for attempt in range(max_retries + 1):
+            try:
+                response = self.client.models.generate_content(
+                    model=self.model,
+                    contents=prompt
                 )
-            elif "429" in err_msg or "RESOURCE_EXHAUSTED" in err_msg:
-                raise LLMServiceError(
-                    "Gemini API rate limit or quota exceeded. Please wait a moment and try again."
+                if not response or not response.text:
+                    raise LLMServiceError("Received an empty response from Gemini API.")
+                return response.text.strip()
+
+            except errors.ClientError as e:
+                # Client errors (400 Bad Request, 403 Invalid Key, 429 Quota Exceeded)
+                # These are NOT temporary network spikes and should NOT be retried
+                err_msg = str(e).replace(self.api_key, "[REDACTED]")
+
+                if "API_KEY_INVALID" in err_msg or "403" in err_msg:
+                    raise LLMServiceError(
+                        "Invalid Gemini API key. Please check your API key in the sidebar or .env file."
+                    )
+                elif "429" in err_msg or "RESOURCE_EXHAUSTED" in err_msg or "quota" in err_msg.lower():
+                    raise LLMServiceError(
+                        "Gemini API rate limit or quota exceeded (HTTP 429). "
+                        "Please verify your usage quota at Google AI Studio or wait a moment before trying again."
+                    )
+                elif "404" in err_msg or "NOT_FOUND" in err_msg:
+                    raise LLMServiceError(
+                        f"The requested Gemini model '{self.model}' was not found (HTTP 404). "
+                        "Please select 'gemini-1.5-flash' in the sidebar or check your Google AI Studio project settings."
+                    )
+                else:
+                    raise LLMServiceError(f"Gemini API Client Error: {err_msg}")
+
+            except errors.ServerError as e:
+                # Server errors (500 Internal, 503 Unavailable / High Demand)
+                err_msg = str(e).replace(self.api_key, "[REDACTED]")
+                is_unavailable = (
+                    getattr(e, "code", None) == 503
+                    or "503" in err_msg
+                    or "UNAVAILABLE" in err_msg
+                    or "high demand" in err_msg.lower()
+                    or "spikes in demand" in err_msg.lower()
                 )
-            else:
-                raise LLMServiceError(f"Gemini API Client Error: {err_msg}")
 
-        except errors.ServerError as e:
-            raise LLMServiceError(
-                f"The AI service is currently unavailable. Please try again. (Details: {str(e)})"
-            )
+                if is_unavailable and attempt < max_retries:
+                    delay = base_delay * (backoff_factor ** attempt)
+                    time.sleep(delay)
+                    continue
 
-        except Exception as e:
-            raise LLMServiceError(f"Unexpected error communicating with Gemini API: {str(e)}")
+                if is_unavailable:
+                    raise LLMServiceError(
+                        f"The Gemini model '{self.model}' is currently experiencing high demand (HTTP 503) "
+                        f"after {max_retries} retry attempts. Please wait a few moments or switch models in the sidebar."
+                    )
+                else:
+                    raise LLMServiceError(
+                        f"The AI service is currently unavailable. Please try again. (Details: {err_msg})"
+                    )
+
+            except LLMServiceError:
+                raise
+
+            except Exception as e:
+                clean_msg = str(e).replace(self.api_key, "[REDACTED]")
+                raise LLMServiceError(f"Unexpected error communicating with Gemini API: {clean_msg}")
+
+        raise LLMServiceError("Service request failed after retry attempts.")
