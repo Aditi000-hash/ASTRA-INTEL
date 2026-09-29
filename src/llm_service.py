@@ -11,6 +11,7 @@ HOW:  Uses the official google-genai SDK, structured context injection with page
       demarcations, multi-turn history formatting, and explicit refusal instructions.
 """
 
+import os
 from typing import List, Dict, Any, Optional
 from google import genai
 from google.genai import errors
@@ -28,19 +29,20 @@ class LLMServiceError(Exception):
 class LLMService:
     """Wrapper class managing Gemini API interactions."""
 
-    def __init__(self, api_key: str, model: str = "gemini-2.5-flash"):
+    def __init__(self, api_key: str, model: str = "gemini-3.8-flash"):
         """
         Initializes the Gemini client.
 
         Args:
             api_key: Valid Google Gemini API Key.
-            model: Gemini model identifier (default: gemini-2.5-flash).
+            model: Gemini model identifier (default: gemini-3.8-flash, or GEMINI_MODEL env var).
         """
         if not api_key or not api_key.strip():
             raise LLMServiceError("Missing API key. Please configure your Gemini API key.")
 
         self.api_key = api_key.strip()
-        self.model = model
+        # Support override via GEMINI_MODEL environment variable, defaulting to gemini-3.8-flash
+        self.model = os.getenv("GEMINI_MODEL") or model
         try:
             self.client = genai.Client(api_key=self.api_key)
         except Exception as e:
