@@ -24,22 +24,30 @@ load_dotenv()
 
 def get_api_key(explicit_key: Optional[str] = None) -> Optional[str]:
     """
-    Retrieves the Gemini API key from explicit user input or environment variables.
+    Retrieves the Gemini API key from explicit user input, environment variables, or Streamlit secrets.
 
     Priority:
     1. Explicit key entered in the UI sidebar.
     2. GEMINI_API_KEY stored in the .env file or system environment.
+    3. Streamlit Community Cloud secrets (st.secrets["GEMINI_API_KEY"]).
 
     Returns:
         Cleaned API key string if found and valid, otherwise None.
     """
     key = explicit_key if explicit_key and explicit_key.strip() else os.getenv("GEMINI_API_KEY")
     if not key:
+        try:
+            import streamlit as st
+            key = st.secrets.get("GEMINI_API_KEY")
+        except Exception:
+            key = None
+
+    if not key:
         return None
 
     cleaned_key = key.strip()
     # Check if the user left the default placeholder
-    if cleaned_key == "your_api_key_here" or len(cleaned_key) < 10:
+    if cleaned_key in ("your_api_key_here", "your_gemini_api_key_here") or len(cleaned_key) < 10:
         return None
 
     return cleaned_key

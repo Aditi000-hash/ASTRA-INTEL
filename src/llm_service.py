@@ -45,8 +45,15 @@ class LLMService:
             raise LLMServiceError("Missing API key. Please configure your Gemini API key.")
 
         self.api_key = api_key.strip()
-        # Support override via GEMINI_MODEL environment variable, defaulting to gemini-3.8-flash
-        self.model = os.getenv("GEMINI_MODEL") or model
+        # Support override via GEMINI_MODEL environment variable or Streamlit secrets, defaulting to gemini-3.8-flash
+        model_override = os.getenv("GEMINI_MODEL")
+        if not model_override:
+            try:
+                import streamlit as st
+                model_override = st.secrets.get("GEMINI_MODEL")
+            except Exception:
+                model_override = None
+        self.model = model_override or model
         try:
             self.client = genai.Client(api_key=self.api_key)
         except Exception as e:

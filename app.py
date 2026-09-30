@@ -102,7 +102,14 @@ with st.sidebar:
 
     # 2. Model Selection
     model_options = ["gemini-3.8-flash", "gemini-3.5-flash-lite"]
-    env_default_model = os.getenv("GEMINI_MODEL", "gemini-3.8-flash")
+    env_default_model = os.getenv("GEMINI_MODEL")
+    if not env_default_model:
+        try:
+            env_default_model = st.secrets.get("GEMINI_MODEL")
+        except Exception:
+            env_default_model = None
+    if not env_default_model:
+        env_default_model = "gemini-3.8-flash"
     default_idx = model_options.index(env_default_model) if env_default_model in model_options else 0
     selected_model = st.selectbox(
         "Gemini Model",
