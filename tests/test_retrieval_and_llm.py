@@ -162,3 +162,67 @@ def test_llm_service_429_quota_immediate_rejection(monkeypatch):
     # Ensure raw API key is never in error message
     assert "AIzaSyDummyKeyFor429Check12345" not in str(exc_info.value)
 
+
+def test_natural_language_synonym_retrieval():
+    """Verify that natural language queries with synonyms (fast -> speed/knots) retrieve the right chunk."""
+    chunks = [
+        {"chunk_id": 1, "page": 1, "text": "Project Astra carbon-fiber airframe."},
+        {"chunk_id": 2, "page": 2, "text": "Cruising speed: 180 knots. Maximum dash speed: 260 knots."},
+        {"chunk_id": 3, "page": 3, "text": "EO/IR gyrostabilized turret with 50x optical magnification camera."},
+        {"chunk_id": 4, "page": 4, "text": "Operating ambient temperature range -40C to +55C."}
+    ]
+
+    # Test 1: speed synonym (fast)
+    top_chunks, has_matches = retrieve_relevant_chunks(chunks, "How fast can it fly?", top_k=2)
+    assert has_matches is True
+    assert top_chunks[0]["page"] == 2
+    assert "180 knots" in top_chunks[0]["text"]
+
+    # Test 2: optics synonym (cameras)
+    top_chunks, has_matches = retrieve_relevant_chunks(chunks, "What cameras or optics does it carry?", top_k=2)
+    assert has_matches is True
+    assert top_chunks[0]["page"] == 3
+
+
+def test_multi_page_retrieval():
+    """Verify that multi-section queries retrieve evidence spanning multiple distinct pages."""
+    chunks = [
+        {"chunk_id": 1, "page": 1, "text": "Project Astra executive overview and carbon composite structure."},
+        {"chunk_id": 2, "page": 2, "text": "Hybrid hydrogen-electric fuel cell propulsion powerplant."},
+        {"chunk_id": 3, "page": 3, "text": "Maritime border surveillance and tactical reconnaissance payloads."},
+        {"chunk_id": 4, "page": 4, "text": "Severe weather limitations: maximum crosswind 35 knots, temperature -40C."}
+    ]
+
+    query = "What is the propulsion powerplant and what are the weather limitations?"
+    top_chunks, has_matches = retrieve_relevant_chunks(chunks, query, top_k=3)
+    assert has_matches is True
+    retrieved_pages = set(c["page"] for c in top_chunks)
+    assert 2 in retrieved_pages
+    assert 4 in retrieved_pages
+
+
+def test_llm_service_refusal_distinction_empty_context():
+    """Verify that empty context returns status_detail 'NO_RELEVANT_PASSAGES'."""
+    llm = LLMService(api_key="AIzaSyDummyKeyForRefusalCheck12345")
+    result = llm.answer_question(
+        question="What is the nuclear warhead capacity?",
+        context_chunks=[]
+    )
+    assert result["answer"] == REFUSAL_PHRASE
+    assert result["is_grounded"] is False
+    assert result["status_detail"] == "NO_RELEVANT_PASSAGES"
+
+
+def test_llm_service_refusal_distinction_gemini_refusal(monkeypatch):
+    """Verify that Gemini refusing returns status_detail 'INSUFFICIENT_EVIDENCE'."""
+    llm = LLMService(api_key="AIzaSyDummyKeyForRefusalCheck12345")
+    monkeypatch.setattr(llm, "_call_gemini", lambda prompt: REFUSAL_PHRASE)
+
+    result = llm.answer_question(
+        question="What is the nuclear warhead capacity?",
+        context_chunks=[{"page": 3, "text": "Tactical payloads include EO/IR turret and radar.", "score": 1.0}]
+    )
+    assert result["answer"] == REFUSAL_PHRASE
+    assert result["is_grounded"] is False
+    assert result["status_detail"] == "INSUFFICIENT_EVIDENCE"
+

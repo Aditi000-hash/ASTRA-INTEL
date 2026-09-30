@@ -16,7 +16,7 @@ SAMPLE_PDF_PATH = os.path.join(
 )
 
 
-def test_end_to_end_retrieval_flow():
+def test_end_to_end_retrieval_flow(monkeypatch):
     """Simulates a full user interaction workflow using the sample defence document."""
     # 1. Load PDF
     with open(SAMPLE_PDF_PATH, "rb") as f:
@@ -50,9 +50,10 @@ def test_end_to_end_retrieval_flow():
     unsupported_chunks, has_unsupported_matches = retrieve_relevant_chunks(chunks, unsupported_query)
 
     # Retrieval should either find nothing or LLMService will refuse
-    if not has_unsupported_matches:
-        llm = LLMService(api_key="AIzaSyDummyKeyForOfflineUnitTesting123456789")
-        response = llm.answer_question(unsupported_query, unsupported_chunks)
-        assert response["answer"] == REFUSAL_PHRASE
-        assert response["is_grounded"] is False
-        assert response["sources"] == []
+    llm = LLMService(api_key="AIzaSyDummyKeyForOfflineUnitTesting123456789")
+    monkeypatch.setattr(llm, "_call_gemini", lambda prompt: REFUSAL_PHRASE)
+    response = llm.answer_question(unsupported_query, unsupported_chunks if has_unsupported_matches else [])
+    assert response["answer"] == REFUSAL_PHRASE
+    assert response["is_grounded"] is False
+    assert response["sources"] == []
+    assert response["status_detail"] in ("NO_RELEVANT_PASSAGES", "INSUFFICIENT_EVIDENCE")

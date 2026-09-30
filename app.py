@@ -13,12 +13,17 @@ HOW:  Streamlit handles reactive UI state, PyMuPDF extracts page text, the keywo
 """
 
 import os
+import logging
 import streamlit as st
 
 from src.pdf_processor import extract_pages_from_pdf, chunk_pages, PDFProcessingError
 from src.retrieval import retrieve_relevant_chunks
 from src.llm_service import LLMService, LLMServiceError, REFUSAL_PHRASE
 from src.utils import get_api_key, format_page_citations
+
+# Configure safe application logger
+logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(name)s: %(message)s")
+logger = logging.getLogger("astra_intel")
 
 
 # Set page configuration
@@ -292,7 +297,19 @@ if user_query:
         relevant_chunks, has_matches = retrieve_relevant_chunks(
             chunks=st.session_state.chunks,
             query=query_text,
-            top_k=4
+            top_k=5
+        )
+
+        # Safe diagnostic telemetry (never logging keys or secrets)
+        retrieved_pages = [c.get("page") for c in relevant_chunks]
+        retrieved_scores = [c.get("score") for c in relevant_chunks]
+        context_len = sum(len(c.get("text", "")) for c in relevant_chunks)
+        logger.info(
+            f"Q&A Request: stored_pages={len(st.session_state.pages)}, "
+            f"stored_chunks={len(st.session_state.chunks)}, "
+            f"chunks_retrieved={len(relevant_chunks)}, has_matches={has_matches}, "
+            f"retrieved_pages={retrieved_pages}, scores={retrieved_scores}, "
+            f"approx_context_chars={context_len}"
         )
 
         # Step 2: Query Gemini with strict anti-hallucination instructions
@@ -305,6 +322,12 @@ if user_query:
                     chat_history=st.session_state.messages
                 )
 
+                logger.info(
+                    f"Q&A Result: is_grounded={response_dict.get('is_grounded')}, "
+                    f"status_detail={response_dict.get('status_detail')}, "
+                    f"sources={response_dict.get('sources')}"
+                )
+
                 # Step 3: Record exchange in multi-turn session history
                 st.session_state.messages.append({
                     "role": "user",
@@ -315,7 +338,8 @@ if user_query:
                     "content": response_dict["answer"],
                     "sources": response_dict["sources"],
                     "source_excerpts": response_dict["source_excerpts"],
-                    "is_grounded": response_dict["is_grounded"]
+                    "is_grounded": response_dict["is_grounded"],
+                    "status_detail": response_dict.get("status_detail", "UNKNOWN")
                 })
 
             except LLMServiceError as le:
@@ -356,4 +380,8 @@ if st.session_state.messages:
                                 )
                                 st.code(ex["text"], language=None)
                 else:
-                    st.warning("⚠️ **NOT IN DOCUMENT** — No factual support exists in the uploaded document. Speculation rejected.")
+                    detail = msg.get("status_detail")
+                    if detail == "NO_RELEVANT_PASSAGES":
+                        st.warning("⚠️ **NOT IN DOCUMENT** — No relevant passages matching this query were found in the uploaded document. Speculation rejected.")
+                    else:
+                        st.warning("⚠️ **NOT IN DOCUMENT** — Candidate sections were reviewed, but no factual verification exists in the document. Speculation rejected.")

@@ -152,7 +152,8 @@ class LLMService:
                 "answer": REFUSAL_PHRASE,
                 "sources": [],
                 "source_excerpts": [],
-                "is_grounded": False
+                "is_grounded": False,
+                "status_detail": "NO_RELEVANT_PASSAGES"
             }
 
         # Build context block with exact page tags
@@ -176,37 +177,53 @@ class LLMService:
 
         prompt = (
             "You are ASTRA INTEL, an AI Defence Document Intelligence Assistant answering questions "
-            "about an uploaded defence/technical document.\n\n"
-            "STRICT ANTI-HALLUCINATION RULES:\n"
-            "1. Use ONLY the supplied document context below to answer the question.\n"
-            "2. Do NOT use outside knowledge, prior training data, or speculative inference.\n"
-            "3. If the answer cannot be found or directly verified in the supplied context, you MUST reply EXACTLY:\n"
+            "about an uploaded technical/defence document.\n\n"
+            "STRICT GROUNDING & ANTI-HALLUCINATION RULES:\n"
+            "1. Answer using ONLY the factual evidence present in the DOCUMENT CONTEXT below.\n"
+            "2. Do NOT use outside knowledge, prior training assumptions, or speculative extrapolation.\n"
+            "3. If the answer cannot be found or directly inferred from the supplied context, you MUST reply EXACTLY:\n"
             f"   '{REFUSAL_PHRASE}'\n"
             "4. Do NOT guess, fabricate facts, or cite pages not present in the context.\n"
             "5. Answer in a professional, clear, and technically precise manner.\n\n"
             f"{history_text}"
-            f"--- SUPPLIED DOCUMENT CONTEXT ---\n"
-            f"{formatted_context}\n"
-            f"--- END OF CONTEXT ---\n\n"
-            f"QUESTION: {question.strip()}\n\n"
+            f"DOCUMENT CONTEXT:\n"
+            f"{formatted_context}\n\n"
+            f"USER QUESTION: {question.strip()}\n\n"
             "ANSWER:"
         )
 
         raw_answer = self._call_gemini(prompt).strip()
+        raw_lower = raw_answer.lower()
+        refusal_lower = REFUSAL_PHRASE.lower()
 
-        # Check if model gave the refusal phrase
-        is_refusal = (
-            REFUSAL_PHRASE.lower() in raw_answer.lower()
-            or "not found in the uploaded document" in raw_answer.lower()
-            or "information is not mentioned" in raw_answer.lower()
+        # Robust refusal detection:
+        # A response is a refusal if it starts with the refusal phrase, matches it exactly,
+        # or states the information is absent without providing substantive facts.
+        is_exact_refusal = (
+            raw_lower == refusal_lower
+            or raw_lower.startswith(refusal_lower)
+            or (refusal_lower in raw_lower and len(raw_answer) < 250)
+        )
+        is_short_absence_notice = (
+            len(raw_answer) < 180
+            and any(phrase in raw_lower for phrase in [
+                "not found in the uploaded document",
+                "not mentioned in the uploaded document",
+                "document does not contain",
+                "information is not available in the document",
+                "not specified in the provided context",
+                "cannot be found in the document"
+            ])
+            and not any(signal in raw_lower for signal in ["however", "although", "instead", "page"])
         )
 
-        if is_refusal:
+        if is_exact_refusal or is_short_absence_notice:
             return {
                 "answer": REFUSAL_PHRASE,
                 "sources": [],
                 "source_excerpts": [],
-                "is_grounded": False
+                "is_grounded": False,
+                "status_detail": "INSUFFICIENT_EVIDENCE"
             }
 
         # Answer was found and grounded in context
@@ -224,7 +241,8 @@ class LLMService:
             "answer": raw_answer,
             "sources": pages,
             "source_excerpts": source_excerpts,
-            "is_grounded": True
+            "is_grounded": True,
+            "status_detail": "GROUNDED"
         }
 
     def _call_gemini(self, prompt: str) -> str:
